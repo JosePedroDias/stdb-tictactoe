@@ -36,12 +36,18 @@ Feedback
     player_id: Identity
     when: Timestamp
     message: String
+
+DeleteGameTimer  (private, to trigger delete_game reducer later)
+    scheduled_id: u64
+    scheduled_at: ScheduleAt
+    game_id: u32
 ```
 
 ## Reducers
 
 ```
 - play(game_id: u32, pos: u8)
+- delete_game(game_id: u32)      // not meant to be called from the client
 ```
 
 ## Commands
@@ -65,4 +71,5 @@ spacetime sql tic-tac-toe "SELECT * FROM game WHERE p2='000000000000000000000000
 
 ## TODO
 
-- set up timer to delete all game-related data when either game ends or a player leaves via timer
+- improve logic to migrate from game_m to game_n after it ends
+- improve rust code

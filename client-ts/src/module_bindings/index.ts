@@ -32,6 +32,8 @@ import {
 } from "@clockworklabs/spacetimedb-sdk";
 
 // Import and reexport all reducer arg types
+import { DeleteGame } from "./delete_game_reducer.ts";
+export { DeleteGame };
 import { IdentityConnected } from "./identity_connected_reducer.ts";
 export { IdentityConnected };
 import { IdentityDisconnected } from "./identity_disconnected_reducer.ts";
@@ -40,6 +42,8 @@ import { Play } from "./play_reducer.ts";
 export { Play };
 
 // Import and reexport all table handle types
+import { DeleteGameTimerTableHandle } from "./delete_game_timer_table.ts";
+export { DeleteGameTimerTableHandle };
 import { FeedbackTableHandle } from "./feedback_table.ts";
 export { FeedbackTableHandle };
 import { GameTableHandle } from "./game_table.ts";
@@ -48,6 +52,8 @@ import { GameMoveTableHandle } from "./game_move_table.ts";
 export { GameMoveTableHandle };
 
 // Import and reexport all types
+import { DeleteGameTimer } from "./delete_game_timer_type.ts";
+export { DeleteGameTimer };
 import { Feedback } from "./feedback_type.ts";
 export { Feedback };
 import { Game } from "./game_type.ts";
@@ -57,6 +63,11 @@ export { GameMove };
 
 const REMOTE_MODULE = {
   tables: {
+    delete_game_timer: {
+      tableName: "delete_game_timer",
+      rowType: DeleteGameTimer.getTypeScriptAlgebraicType(),
+      primaryKey: "scheduledId",
+    },
     feedback: {
       tableName: "feedback",
       rowType: Feedback.getTypeScriptAlgebraicType(),
@@ -74,6 +85,10 @@ const REMOTE_MODULE = {
     },
   },
   reducers: {
+    delete_game: {
+      reducerName: "delete_game",
+      argsType: DeleteGame.getTypeScriptAlgebraicType(),
+    },
     identity_connected: {
       reducerName: "identity_connected",
       argsType: IdentityConnected.getTypeScriptAlgebraicType(),
@@ -113,6 +128,7 @@ const REMOTE_MODULE = {
 
 // A type representing all the possible variants of a reducer.
 export type Reducer = never
+| { name: "DeleteGame", args: DeleteGame }
 | { name: "IdentityConnected", args: IdentityConnected }
 | { name: "IdentityDisconnected", args: IdentityDisconnected }
 | { name: "Play", args: Play }
@@ -120,6 +136,22 @@ export type Reducer = never
 
 export class RemoteReducers {
   constructor(private connection: DbConnectionImpl, private setCallReducerFlags: SetReducerFlags) {}
+
+  deleteGame(timer: DeleteGameTimer) {
+    const __args = { timer };
+    let __writer = new BinaryWriter(1024);
+    DeleteGame.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("delete_game", __argsBuffer, this.setCallReducerFlags.deleteGameFlags);
+  }
+
+  onDeleteGame(callback: (ctx: ReducerEventContext, timer: DeleteGameTimer) => void) {
+    this.connection.onReducer("delete_game", callback);
+  }
+
+  removeOnDeleteGame(callback: (ctx: ReducerEventContext, timer: DeleteGameTimer) => void) {
+    this.connection.offReducer("delete_game", callback);
+  }
 
   onIdentityConnected(callback: (ctx: ReducerEventContext) => void) {
     this.connection.onReducer("identity_connected", callback);
@@ -156,6 +188,11 @@ export class RemoteReducers {
 }
 
 export class SetReducerFlags {
+  deleteGameFlags: CallReducerFlags = 'FullUpdate';
+  deleteGame(flags: CallReducerFlags) {
+    this.deleteGameFlags = flags;
+  }
+
   playFlags: CallReducerFlags = 'FullUpdate';
   play(flags: CallReducerFlags) {
     this.playFlags = flags;
@@ -165,6 +202,10 @@ export class SetReducerFlags {
 
 export class RemoteTables {
   constructor(private connection: DbConnectionImpl) {}
+
+  get deleteGameTimer(): DeleteGameTimerTableHandle {
+    return new DeleteGameTimerTableHandle(this.connection.clientCache.getOrCreateTable<DeleteGameTimer>(REMOTE_MODULE.tables.delete_game_timer));
+  }
 
   get feedback(): FeedbackTableHandle {
     return new FeedbackTableHandle(this.connection.clientCache.getOrCreateTable<Feedback>(REMOTE_MODULE.tables.feedback));

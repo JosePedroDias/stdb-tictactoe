@@ -268,9 +268,17 @@ pub fn play(ctx: &ReducerContext, game_id: u32, position: u8) {
     }
 
     log::info!("Move goes through...");
-    let v: u8 = if g.p1 == ctx.sender { 1u8 } else { 2u8 };
+    let v: u8 = if g.p1 == ctx.sender { 1 } else { 2 };
     board[p_size] = v;
     log::info!("board after move:  {:?}", board);
+
+    let fb_s = if v == 1 {
+        "Valid move from X!".to_string()
+    } else {
+        "Valid move from O!".to_string()
+    };
+    give_feedback(ctx, game_id, g.p1, fb_s.to_owned());
+    give_feedback(ctx, game_id, g.p2, fb_s);
 
     let mv = GameMove {
         id: 0,
@@ -291,8 +299,9 @@ pub fn play(ctx: &ReducerContext, game_id: u32, position: u8) {
     } else if is_full(board) {
         g.result = GR_TIE;
         log::info!("Players tied.");
-        give_feedback(ctx, game_id, g.p1, "the game is a tie!".to_string());
-        give_feedback(ctx, game_id, g.p2, "the game is a tie!".to_string());
+        let fb_s = "the game is a tie.".to_string();
+        give_feedback(ctx, game_id, g.p1, fb_s.to_owned());
+        give_feedback(ctx, game_id, g.p2, fb_s);
     } else {
         log::info!("Non-finishing move...");
         return;

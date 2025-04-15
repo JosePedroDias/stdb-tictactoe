@@ -12,17 +12,20 @@ const GR_ONGOING = 1;
 
 export type Board = Array<number>;
 
+type Unsubscribable = { unsubscribe(): void };
+
 export class TicTacToeClient {
   conn: DbConnection;
   //subsBuilder: Subscrito
   myIdentity?: Identity;
   myIdentityHex?: string;
   myToken?: string;
-  board: number[] = new Array(9).fill(0);
+  volatileHandles: Array<Unsubscribable> = [];
 
   // these are game-related
   gameId?: number;
   playingFirst: boolean = false;
+  board: number[] = new Array(9).fill(0);
 
   constructor(url: string = 'ws://localhost:3000') {
     this.conn = DbConnection.builder()
@@ -75,13 +78,19 @@ export class TicTacToeClient {
   }
 
   private setupOnceGameIdIsSet() {
-    this.conn
+    // @ts-ignore
+    for (let h in this.volatileHandles) h.unsubscribe();
+
+    const h1 = this.conn
     .subscriptionBuilder()
     .subscribe(`SELECT * FROM game_move WHERE game_id=${this.gameId}`);
 
-    this.conn
+    const h2 = this.conn
     .subscriptionBuilder()
     .subscribe(`SELECT * FROM feedback WHERE game_id=${this.gameId} AND player_id='${this.myIdentityHex}'`);
+
+    this.volatileHandles.push(h1);
+    this.volatileHandles.push(h2);
 
     console.log(`Setting up for gameId: ${this.gameId}`);
   }
@@ -89,8 +98,8 @@ export class TicTacToeClient {
   private onGameInsert(game: Game) {
     console.log('Game inserted:', game);
 
-    if (this.gameId) {
-      console.log('Game already set up, ignoring insert');
+    if (this.gameId && game.id === this.gameId) {
+      //console.log('Game already set up, ignoring insert');
       return;
     }
 
@@ -103,7 +112,7 @@ export class TicTacToeClient {
     console.log('Game updated:', game, 'from old:', gameOld);
 
     if (this.gameId) {
-      console.log('Game already set up, ignoring update setup');
+      //console.log('Game already set up, ignoring update setup');
       return;
     } else {
       this.gameId = game.id;
@@ -125,7 +134,6 @@ export class TicTacToeClient {
     console.log('Board:', this.board);
     updateBoard(this.board);
     updateNextPlayer(`Next player: ${toMark(v === 1 ? 2 : 1)}.`);
-    //updateNextPlayer(`Next player: ${toMark(v === 1 ? 2 : 1)}. You play ${this.playingFirst ? 'X' : 'O'}`);
   }
 
   private onFeedbackInsert(fb: Feedback) {
