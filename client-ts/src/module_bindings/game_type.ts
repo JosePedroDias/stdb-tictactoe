@@ -34,10 +34,7 @@ export type Game = {
   id: number,
   p1: Identity,
   p2: Identity,
-  result: number,
   when: Timestamp,
-  ready1: boolean,
-  ready2: boolean,
 };
 
 /**
@@ -53,10 +50,7 @@ export namespace Game {
       new ProductTypeElement("id", AlgebraicType.createU32Type()),
       new ProductTypeElement("p1", AlgebraicType.createIdentityType()),
       new ProductTypeElement("p2", AlgebraicType.createIdentityType()),
-      new ProductTypeElement("result", AlgebraicType.createU8Type()),
       new ProductTypeElement("when", AlgebraicType.createTimestampType()),
-      new ProductTypeElement("ready1", AlgebraicType.createBoolType()),
-      new ProductTypeElement("ready2", AlgebraicType.createBoolType()),
     ]);
   }
 

@@ -18,10 +18,7 @@ Game
     id: u32
     p1: Identity
     p2: Identity
-    result: u8
     when: Timestamp
-    ready1: bool
-    ready2: bool
 
 GameMove
     id: u32
@@ -41,6 +38,16 @@ DeleteGameTimer  (private, to trigger delete_game reducer later)
     scheduled_id: u64
     scheduled_at: ScheduleAt
     game_id: u32
+
+PlayerStats
+    id: Identity
+    starts: u32
+    left_early: u32
+    wins: u32
+    ties: u32
+    losses: u32
+    created_at: Timestamp
+    updated_at: Timestamp
 ```
 
 ## Reducers
@@ -73,3 +80,5 @@ spacetime sql tic-tac-toe "SELECT * FROM game WHERE p2='000000000000000000000000
 
 - improve logic to migrate from game_m to game_n after it ends
 - improve rust code
+- confirm schedule rows get deleted after game itself is deleted
+- create/Update PlayerStats once player joins

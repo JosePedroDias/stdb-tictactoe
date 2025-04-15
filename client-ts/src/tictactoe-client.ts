@@ -1,5 +1,5 @@
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
-import { DbConnection, ErrorContext, EventContext, Game, GameMove, Feedback } from './module_bindings';
+import { DbConnection, ErrorContext, EventContext, Game, GameMove, Feedback, PlayerStats } from './module_bindings';
 
 import { updateBoard, updateFeedback, updateNextPlayer } from './ui.js';
 
@@ -7,8 +7,7 @@ function toMark(v: number) {
   return (v == 1 ? 'X' : v == 2 ? 'O' : ' ');
 }
 
-const GR_UNSTARTED = 0;
-const GR_ONGOING = 1;
+const IDENTITY_ZERO = BigInt(0);
 
 export type Board = Array<number>;
 
@@ -63,8 +62,14 @@ export class TicTacToeClient {
       .subscriptionBuilder()
       .subscribe(`SELECT * FROM game WHERE p1='${idHex}' OR p2='${idHex}'`);
 
+      conn
+      .subscriptionBuilder()
+      .subscribe(`SELECT * FROM player_stats WHERE id='${idHex}'`);
+
     conn.db.game.onInsert((_ctx: EventContext, game: Game) => this.onGameInsert(game));
     conn.db.game.onUpdate((_ctx: EventContext, gameOld: Game, game: Game) => this.onGameUpdate(gameOld, game));
+    conn.db.playerStats.onInsert((_ctx: EventContext, ps: PlayerStats) => this.onPlayerStatsInsert(ps));
+    conn.db.playerStats.onUpdate((_ctx: EventContext, psOld: PlayerStats, ps: PlayerStats) => this.onPlayerStatsUpdate(psOld, ps));
     conn.db.gameMove.onInsert((_ctx: EventContext, gm: GameMove) => this.onGameMoveInsert(gm));
     conn.db.feedback.onInsert((_ctx: EventContext, fb: Feedback) => this.onFeedbackInsert(fb));
   }
@@ -78,8 +83,12 @@ export class TicTacToeClient {
   }
 
   private setupOnceGameIdIsSet() {
-    // @ts-ignore
-    for (let h in this.volatileHandles) h.unsubscribe();
+    
+    for (let h in this.volatileHandles) {
+      console.warn(h);
+      // @ts-ignore
+      h.unsubscribe();
+    }
 
     const h1 = this.conn
     .subscriptionBuilder()
@@ -99,7 +108,6 @@ export class TicTacToeClient {
     console.log('Game inserted:', game);
 
     if (this.gameId && game.id === this.gameId) {
-      //console.log('Game already set up, ignoring insert');
       return;
     }
 
@@ -112,7 +120,6 @@ export class TicTacToeClient {
     console.log('Game updated:', game, 'from old:', gameOld);
 
     if (this.gameId) {
-      //console.log('Game already set up, ignoring update setup');
       return;
     } else {
       this.gameId = game.id;
@@ -120,10 +127,18 @@ export class TicTacToeClient {
       this.setupOnceGameIdIsSet();
     }
 
-    if (game.result === GR_ONGOING && gameOld.result == GR_UNSTARTED) {
+    if (game.p2.__identity__ !== IDENTITY_ZERO && gameOld.p2.__identity__ === IDENTITY_ZERO) {
       const msg = `Game started! ${this.playingFirst ? 'You play first with the Xs!' : 'Opponent plays first... You play Os.'}`;
       updateFeedback(msg);
     }
+  }
+
+  private onPlayerStatsInsert(ps: PlayerStats) {
+    console.log('Player stats inserted:', ps);
+  }
+
+  private onPlayerStatsUpdate(psOld: PlayerStats, ps: PlayerStats) {
+    console.log('Player stats updated:', ps, 'from old:', psOld);
   }
 
   private onGameMoveInsert(gm: GameMove) {

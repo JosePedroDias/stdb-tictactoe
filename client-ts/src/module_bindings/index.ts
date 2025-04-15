@@ -50,6 +50,8 @@ import { GameTableHandle } from "./game_table.ts";
 export { GameTableHandle };
 import { GameMoveTableHandle } from "./game_move_table.ts";
 export { GameMoveTableHandle };
+import { PlayerStatsTableHandle } from "./player_stats_table.ts";
+export { PlayerStatsTableHandle };
 
 // Import and reexport all types
 import { DeleteGameTimer } from "./delete_game_timer_type.ts";
@@ -60,6 +62,8 @@ import { Game } from "./game_type.ts";
 export { Game };
 import { GameMove } from "./game_move_type.ts";
 export { GameMove };
+import { PlayerStats } from "./player_stats_type.ts";
+export { PlayerStats };
 
 const REMOTE_MODULE = {
   tables: {
@@ -81,6 +85,11 @@ const REMOTE_MODULE = {
     game_move: {
       tableName: "game_move",
       rowType: GameMove.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    player_stats: {
+      tableName: "player_stats",
+      rowType: PlayerStats.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
   },
@@ -217,6 +226,10 @@ export class RemoteTables {
 
   get gameMove(): GameMoveTableHandle {
     return new GameMoveTableHandle(this.connection.clientCache.getOrCreateTable<GameMove>(REMOTE_MODULE.tables.game_move));
+  }
+
+  get playerStats(): PlayerStatsTableHandle {
+    return new PlayerStatsTableHandle(this.connection.clientCache.getOrCreateTable<PlayerStats>(REMOTE_MODULE.tables.player_stats));
   }
 }
 
