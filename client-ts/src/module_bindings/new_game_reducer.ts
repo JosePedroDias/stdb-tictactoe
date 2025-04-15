@@ -30,44 +30,29 @@ import {
   Timestamp,
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
-export type PlayerStats = {
-  id: Identity,
-  starts: number,
-  wins: number,
-  ties: number,
-  losses: number,
-  createdAt: Timestamp,
-  updatedAt: Timestamp,
-};
+
+export type NewGame = {};
 
 /**
  * A namespace for generated helper functions.
  */
-export namespace PlayerStats {
+export namespace NewGame {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("id", AlgebraicType.createIdentityType()),
-      new ProductTypeElement("starts", AlgebraicType.createU32Type()),
-      new ProductTypeElement("wins", AlgebraicType.createU32Type()),
-      new ProductTypeElement("ties", AlgebraicType.createU32Type()),
-      new ProductTypeElement("losses", AlgebraicType.createU32Type()),
-      new ProductTypeElement("createdAt", AlgebraicType.createTimestampType()),
-      new ProductTypeElement("updatedAt", AlgebraicType.createTimestampType()),
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: PlayerStats): void {
-    PlayerStats.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: NewGame): void {
+    NewGame.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): PlayerStats {
-    return PlayerStats.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): NewGame {
+    return NewGame.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }
-
 

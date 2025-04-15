@@ -38,6 +38,8 @@ import { IdentityConnected } from "./identity_connected_reducer.ts";
 export { IdentityConnected };
 import { IdentityDisconnected } from "./identity_disconnected_reducer.ts";
 export { IdentityDisconnected };
+import { NewGame } from "./new_game_reducer.ts";
+export { NewGame };
 import { Play } from "./play_reducer.ts";
 export { Play };
 
@@ -106,6 +108,10 @@ const REMOTE_MODULE = {
       reducerName: "identity_disconnected",
       argsType: IdentityDisconnected.getTypeScriptAlgebraicType(),
     },
+    new_game: {
+      reducerName: "new_game",
+      argsType: NewGame.getTypeScriptAlgebraicType(),
+    },
     play: {
       reducerName: "play",
       argsType: Play.getTypeScriptAlgebraicType(),
@@ -140,6 +146,7 @@ export type Reducer = never
 | { name: "DeleteGame", args: DeleteGame }
 | { name: "IdentityConnected", args: IdentityConnected }
 | { name: "IdentityDisconnected", args: IdentityDisconnected }
+| { name: "NewGame", args: NewGame }
 | { name: "Play", args: Play }
 ;
 
@@ -178,6 +185,18 @@ export class RemoteReducers {
     this.connection.offReducer("identity_disconnected", callback);
   }
 
+  newGame() {
+    this.connection.callReducer("new_game", new Uint8Array(0), this.setCallReducerFlags.newGameFlags);
+  }
+
+  onNewGame(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("new_game", callback);
+  }
+
+  removeOnNewGame(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("new_game", callback);
+  }
+
   play(gameId: number, position: number) {
     const __args = { gameId, position };
     let __writer = new BinaryWriter(1024);
@@ -200,6 +219,11 @@ export class SetReducerFlags {
   deleteGameFlags: CallReducerFlags = 'FullUpdate';
   deleteGame(flags: CallReducerFlags) {
     this.deleteGameFlags = flags;
+  }
+
+  newGameFlags: CallReducerFlags = 'FullUpdate';
+  newGame(flags: CallReducerFlags) {
+    this.newGameFlags = flags;
   }
 
   playFlags: CallReducerFlags = 'FullUpdate';

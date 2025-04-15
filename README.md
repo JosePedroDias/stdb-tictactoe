@@ -1,15 +1,10 @@
 # tic-tac-toe
 
-## Enums / Column values
+The simplest tic tac toe game, in [spacetimedb](https://spacetimedb.com/).
 
-```
-game:result
-    0 = not started
-    1 = ongoing
-    2 = p1 wins
-    3 = tie
-    4 = p2 wins
-```
+Server code in Rust.  
+Brower client code in TypeScript and vanilla DOM interface.
+
 
 ## Tables
 
@@ -42,7 +37,6 @@ DeleteGameTimer  (private, to trigger delete_game reducer later)
 PlayerStats
     id: Identity
     starts: u32
-    left_early: u32
     wins: u32
     ties: u32
     losses: u32
@@ -55,6 +49,7 @@ PlayerStats
 ```
 - play(game_id: u32, pos: u8)
 - delete_game(game_id: u32)      // not meant to be called from the client
+- new_game()                     // problematic for now, not in use
 ```
 
 ## Commands
@@ -71,6 +66,7 @@ spacetime logs tic-tac-toe
 spacetime sql tic-tac-toe "SELECT * FROM game"
 spacetime sql tic-tac-toe "SELECT * FROM game_move"
 spacetime sql tic-tac-toe "SELECT * FROM feedback"
+spacetime sql tic-tac-toe "SELECT * FROM player_stats"
 
 spacetime sql tic-tac-toe "SELECT * FROM game WHERE p1='c20084e43db5f504f6a7c7d25fbc70f44722473634416bd58ea40c13969a320d'"
 spacetime sql tic-tac-toe "SELECT * FROM game WHERE p2='0000000000000000000000000000000000000000000000000000000000000000'"
@@ -78,7 +74,5 @@ spacetime sql tic-tac-toe "SELECT * FROM game WHERE p2='000000000000000000000000
 
 ## TODO
 
-- improve logic to migrate from game_m to game_n after it ends
-- improve rust code
-- confirm schedule rows get deleted after game itself is deleted
-- create/Update PlayerStats once player joins
+- improve rust code (strings, repeated code, make board into a struct?)
+- show new game button or fix the new_game reducer usage

@@ -1,6 +1,11 @@
 use spacetimedb::{Identity, ReducerContext, ScheduleAt, Table, TimeDuration, Timestamp};
 use std::time::Duration;
 
+/////// CONSTS
+
+const PLAYER_X: u8 = 1;
+const PLAYER_O: u8 = 2;
+
 /////// TABLES
 
 #[spacetimedb::table(name = game, public)]
@@ -22,7 +27,6 @@ pub struct PlayerStats {
     #[primary_key]
     id: Identity,
     starts: u32,
-    left_early: u32,
     wins: u32,
     ties: u32,
     losses: u32,
@@ -73,7 +77,7 @@ struct DeleteGameTimer {
 fn get_board(ctx: &ReducerContext, g: &Game) -> Result<[u8; 9], String> {
     let mut board: [u8; 9] = [0; 9];
     for (i, gm) in ctx.db.game_move().game_id().filter(&g.id).enumerate() {
-        let who = if i % 2 == 0 { 1 } else { 2 };
+        let who = if i % 2 == 0 { PLAYER_X } else { PLAYER_O };
         let index: usize = gm.position as usize;
         board[index] = who;
     }
@@ -112,8 +116,8 @@ fn has_won(board: [u8; 9], v: u8) -> bool {
 fn give_feedback(ctx: &ReducerContext, game_id: u32, player_id: Identity, msg: String) {
     let row = Feedback {
         id: 0,
-        game_id: game_id.to_owned(),
-        player_id: player_id.to_owned(),
+        game_id,
+        player_id,
         when: ctx.timestamp,
         message: msg,
     };
@@ -131,44 +135,19 @@ fn schedule_delete_game(ctx: &ReducerContext, game_id: u32) {
     });
 }
 
-fn update_stats(
-    ctx: &ReducerContext,
-    player_id: Identity,
-    starts: u32,
-    left_early: u32,
-    wins: u32,
-    ties: u32,
-    losses: u32,
-) -> bool {
-    if let Some(mut ps) = ctx.db.player_stats().id().find(player_id) {
-        ps.starts += starts;
-        ps.left_early += left_early;
-        ps.wins += wins;
-        ps.ties += ties;
-        ps.losses += losses;
-        ps.updated_at = ctx.timestamp;
-        ctx.db.player_stats().id().update(ps);
-        return true;
-    }
-    false
+fn find_game_with_me(ctx: &ReducerContext) -> Option<Game> {
+    ctx.db
+        .game()
+        .p1()
+        .filter(&ctx.sender)
+        .next()
+        .or_else(|| ctx.db.game().p2().filter(&ctx.sender).next())
 }
 
-/////// REDUCERS
-
-// #[spacetimedb::reducer(init)]
-// fn init(ctx: &ReducerContext) {
-//     // called at module start
-// }
-
-#[spacetimedb::reducer(client_connected)]
-fn identity_connected(ctx: &ReducerContext) {
-    // called everytime a new client connects
-    log::info!("Client {} connected.", ctx.sender);
-
+fn enter_game(ctx: &ReducerContext) {
     let maybe_ps = ctx.db.player_stats().try_insert(PlayerStats {
         id: ctx.sender,
         starts: 1,
-        left_early: 0,
         wins: 0,
         ties: 0,
         losses: 0,
@@ -176,14 +155,7 @@ fn identity_connected(ctx: &ReducerContext) {
         updated_at: ctx.timestamp,
     });
     if maybe_ps.is_err() {
-        update_stats(ctx, ctx.sender, 1, 0, 0, 0, 0);
-    }
-
-    if let Some(mut ps) = ctx.db.player_stats().id().find(ctx.sender) {
-        ps.starts += 1;
-        ps.updated_at = ctx.timestamp;
-        ctx.db.player_stats().id().update(ps);
-    } else {
+        update_stats(ctx, ctx.sender, 1, 0, 0, 0);
     }
 
     let id0: Identity = Identity::ZERO;
@@ -223,25 +195,51 @@ fn identity_connected(ctx: &ReducerContext) {
     }
 }
 
+fn update_stats(
+    ctx: &ReducerContext,
+    player_id: Identity,
+    starts: u32,
+    wins: u32,
+    ties: u32,
+    losses: u32,
+) -> bool {
+    if let Some(mut ps) = ctx.db.player_stats().id().find(player_id) {
+        ps.starts += starts;
+        ps.wins += wins;
+        ps.ties += ties;
+        ps.losses += losses;
+        ps.updated_at = ctx.timestamp;
+        ctx.db.player_stats().id().update(ps);
+        return true;
+    }
+    false
+}
+
+/////// REDUCERS
+
+// #[spacetimedb::reducer(init)]
+// fn init(ctx: &ReducerContext) {
+//     // called at module start
+// }
+
+#[spacetimedb::reducer(client_connected)]
+fn identity_connected(ctx: &ReducerContext) {
+    // called everytime a new client connects
+    log::info!("Client {} connected.", ctx.sender);
+
+    enter_game(ctx);
+}
+
 #[spacetimedb::reducer(client_disconnected)]
 fn identity_disconnected(ctx: &ReducerContext) {
     // called everytime a client disconnects
     log::info!("Client {} disconnected.", ctx.sender);
 
-    update_stats(ctx, ctx.sender, 0, 1, 0, 0, 0);
-
-    let g = ctx.db.game().p1().filter(&ctx.sender).next();
+    let g = find_game_with_me(ctx);
     if let Some(g) = g {
-        give_feedback(ctx, g.id, g.p2, "other player left".to_string());
+        let other = if g.p1 == ctx.sender { g.p2 } else { g.p1 };
+        give_feedback(ctx, g.id, other, "other player left".to_string());
         schedule_delete_game(ctx, g.id);
-        return;
-    }
-
-    let g = ctx.db.game().p2().filter(&ctx.sender).next();
-    if let Some(g) = g {
-        give_feedback(ctx, g.id, g.p1, "other player left".to_string());
-        schedule_delete_game(ctx, g.id);
-        return;
     }
 }
 
@@ -305,26 +303,26 @@ pub fn play(ctx: &ReducerContext, game_id: u32, position: u8) {
 
         let mv = GameMove {
             id: 0,
-            game_id: game_id.to_owned(),
+            game_id,
             player_id: ctx.sender,
             when: ctx.timestamp,
-            position: position.to_owned(),
+            position,
         };
         ctx.db.game_move().insert(mv);
 
         if has_won(board, v) {
             let winner = ctx.sender;
             let loser = if g.p1 == ctx.sender { g.p2 } else { g.p1 };
-            update_stats(ctx, winner, 0, 0, 1, 0, 0);
-            update_stats(ctx, loser, 0, 0, 0, 0, 1);
+            update_stats(ctx, winner, 0, 1, 0, 0);
+            update_stats(ctx, loser, 0, 0, 0, 1);
             log::info!("Player {} won against {}.", winner, loser);
             give_feedback(ctx, game_id, winner, "you won!".to_string());
             give_feedback(ctx, game_id, loser, "you lost!".to_string());
         } else if is_full(board) {
             log::info!("Players tied.");
             let fb_s = "the game is a tie.".to_string();
-            update_stats(ctx, g.p1, 0, 0, 0, 1, 0);
-            update_stats(ctx, g.p2, 0, 0, 0, 1, 0);
+            update_stats(ctx, g.p1, 0, 0, 1, 0);
+            update_stats(ctx, g.p2, 0, 0, 1, 0);
             give_feedback(ctx, game_id, g.p1, fb_s.to_owned());
             give_feedback(ctx, game_id, g.p2, fb_s);
         } else {
@@ -343,6 +341,23 @@ pub fn play(ctx: &ReducerContext, game_id: u32, position: u8) {
             "Game not found! Must have ended?".to_string(),
         );
     }
+}
+
+#[spacetimedb::reducer]
+fn new_game(ctx: &ReducerContext) {
+    if let Some(g) = find_game_with_me(ctx) {
+        delete_game(
+            ctx,
+            DeleteGameTimer {
+                // TODO: hacky
+                scheduled_id: 0,
+                scheduled_at: ScheduleAt::Time(ctx.timestamp),
+                game_id: g.id,
+            },
+        );
+    }
+
+    enter_game(ctx);
 }
 
 #[spacetimedb::reducer]

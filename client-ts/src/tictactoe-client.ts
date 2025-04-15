@@ -68,6 +68,7 @@ export class TicTacToeClient {
 
     conn.db.game.onInsert((_ctx: EventContext, game: Game) => this.onGameInsert(game));
     conn.db.game.onUpdate((_ctx: EventContext, gameOld: Game, game: Game) => this.onGameUpdate(gameOld, game));
+    conn.db.game.onDelete((_ctx: EventContext, game: Game) => this.onGameDelete(game));
     conn.db.playerStats.onInsert((_ctx: EventContext, ps: PlayerStats) => this.onPlayerStatsInsert(ps));
     conn.db.playerStats.onUpdate((_ctx: EventContext, psOld: PlayerStats, ps: PlayerStats) => this.onPlayerStatsUpdate(psOld, ps));
     conn.db.gameMove.onInsert((_ctx: EventContext, gm: GameMove) => this.onGameMoveInsert(gm));
@@ -83,13 +84,6 @@ export class TicTacToeClient {
   }
 
   private setupOnceGameIdIsSet() {
-    
-    for (let h in this.volatileHandles) {
-      console.warn(h);
-      // @ts-ignore
-      h.unsubscribe();
-    }
-
     const h1 = this.conn
     .subscriptionBuilder()
     .subscribe(`SELECT * FROM game_move WHERE game_id=${this.gameId}`);
@@ -117,7 +111,7 @@ export class TicTacToeClient {
   }
 
   private onGameUpdate(gameOld: Game, game: Game) {
-    console.log('Game updated:', game, 'from old:', gameOld);
+    console.log('Game updated:', game);//, 'from old:', gameOld);
 
     if (this.gameId) {
       return;
@@ -133,12 +127,23 @@ export class TicTacToeClient {
     }
   }
 
+  private onGameDelete(game: Game) {
+    console.log('Game deleted:', game);
+    this.gameId = undefined;
+
+    for (let h of this.volatileHandles) h.unsubscribe();
+    this.volatileHandles = [];
+
+    // auto-clicking new game seems to fail. for now needs a browser refresh
+    //setTimeout(this.conn.reducers.newGame, 250 + Math.random() * 500);
+  }
+
   private onPlayerStatsInsert(ps: PlayerStats) {
     console.log('Player stats inserted:', ps);
   }
 
-  private onPlayerStatsUpdate(psOld: PlayerStats, ps: PlayerStats) {
-    console.log('Player stats updated:', ps, 'from old:', psOld);
+  private onPlayerStatsUpdate(_psOld: PlayerStats, ps: PlayerStats) {
+    console.log('Player stats updated:', ps);//, 'from old:', psOld);
   }
 
   private onGameMoveInsert(gm: GameMove) {
