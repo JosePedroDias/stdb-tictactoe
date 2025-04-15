@@ -41,7 +41,6 @@ Feedback
 ## Reducers
 
 ```
-- ready()
 - play(game_id: u32, pos: u8)
 ```
 
@@ -63,3 +62,7 @@ spacetime sql tic-tac-toe "SELECT * FROM feedback"
 spacetime sql tic-tac-toe "SELECT * FROM game WHERE p1='c20084e43db5f504f6a7c7d25fbc70f44722473634416bd58ea40c13969a320d'"
 spacetime sql tic-tac-toe "SELECT * FROM game WHERE p2='0000000000000000000000000000000000000000000000000000000000000000'"
 ```
+
+## TODO
+
+- set up timer to delete all game-related data when either game ends or a player leaves via timer

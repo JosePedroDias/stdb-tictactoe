@@ -9,12 +9,6 @@ function toMark(v: number) {
 
 const GR_UNSTARTED = 0;
 const GR_ONGOING = 1;
-/*const GR_P1_WON = 2;
-const GR_TIE = 3;
-const GR_P2_WON = 4;
-const GR_ABANDONED = 5;*/
-
-//updateFeedback('waiting for opponent');
 
 export type Board = Array<number>;
 
@@ -70,8 +64,6 @@ export class TicTacToeClient {
     conn.db.game.onUpdate((_ctx: EventContext, gameOld: Game, game: Game) => this.onGameUpdate(gameOld, game));
     conn.db.gameMove.onInsert((_ctx: EventContext, gm: GameMove) => this.onGameMoveInsert(gm));
     conn.db.feedback.onInsert((_ctx: EventContext, fb: Feedback) => this.onFeedbackInsert(fb));
-
-    conn.reducers.ready();
   }
 
   private onDisconnect() {
@@ -85,7 +77,7 @@ export class TicTacToeClient {
   private setupOnceGameIdIsSet() {
     this.conn
     .subscriptionBuilder()
-    .subscribe(`SELECT * FROM game_move WHERE game_id=${this.gameId}'`);
+    .subscribe(`SELECT * FROM game_move WHERE game_id=${this.gameId}`);
 
     this.conn
     .subscriptionBuilder()
@@ -132,7 +124,8 @@ export class TicTacToeClient {
     this.board[gm.position] = v;
     console.log('Board:', this.board);
     updateBoard(this.board);
-    updateNextPlayer(`Next player: ${toMark(v === 1 ? 2 : 1)}`);
+    updateNextPlayer(`Next player: ${toMark(v === 1 ? 2 : 1)}.`);
+    //updateNextPlayer(`Next player: ${toMark(v === 1 ? 2 : 1)}. You play ${this.playingFirst ? 'X' : 'O'}`);
   }
 
   private onFeedbackInsert(fb: Feedback) {

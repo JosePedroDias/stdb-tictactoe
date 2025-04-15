@@ -38,8 +38,6 @@ import { IdentityDisconnected } from "./identity_disconnected_reducer.ts";
 export { IdentityDisconnected };
 import { Play } from "./play_reducer.ts";
 export { Play };
-import { Ready } from "./ready_reducer.ts";
-export { Ready };
 
 // Import and reexport all table handle types
 import { FeedbackTableHandle } from "./feedback_table.ts";
@@ -88,10 +86,6 @@ const REMOTE_MODULE = {
       reducerName: "play",
       argsType: Play.getTypeScriptAlgebraicType(),
     },
-    ready: {
-      reducerName: "ready",
-      argsType: Ready.getTypeScriptAlgebraicType(),
-    },
   },
   // Constructors which are used by the DbConnectionImpl to
   // extract type information from the generated RemoteModule.
@@ -122,7 +116,6 @@ export type Reducer = never
 | { name: "IdentityConnected", args: IdentityConnected }
 | { name: "IdentityDisconnected", args: IdentityDisconnected }
 | { name: "Play", args: Play }
-| { name: "Ready", args: Ready }
 ;
 
 export class RemoteReducers {
@@ -160,29 +153,12 @@ export class RemoteReducers {
     this.connection.offReducer("play", callback);
   }
 
-  ready() {
-    this.connection.callReducer("ready", new Uint8Array(0), this.setCallReducerFlags.readyFlags);
-  }
-
-  onReady(callback: (ctx: ReducerEventContext) => void) {
-    this.connection.onReducer("ready", callback);
-  }
-
-  removeOnReady(callback: (ctx: ReducerEventContext) => void) {
-    this.connection.offReducer("ready", callback);
-  }
-
 }
 
 export class SetReducerFlags {
   playFlags: CallReducerFlags = 'FullUpdate';
   play(flags: CallReducerFlags) {
     this.playFlags = flags;
-  }
-
-  readyFlags: CallReducerFlags = 'FullUpdate';
-  ready(flags: CallReducerFlags) {
-    this.readyFlags = flags;
   }
 
 }

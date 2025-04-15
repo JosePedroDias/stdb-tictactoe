@@ -68,13 +68,18 @@ fn get_board(ctx: &ReducerContext, g: &Game) -> Result<[u8; 9], String> {
     Ok(board)
 }
 
-fn is_full(board: [u8; 9]) -> bool {
+fn filled_cells(board: [u8; 9]) -> u8 {
+    let mut count = 0;
     for v in board {
-        if v == 0 {
-            return false;
+        if v > 0 {
+            count += 1;
         }
     }
-    true
+    count
+}
+
+fn is_full(board: [u8; 9]) -> bool {
+    filled_cells(board) == 9
 }
 
 // 0 1 2
@@ -102,9 +107,16 @@ fn give_feedback(ctx: &ReducerContext, game_id: u32, player_id: Identity, msg: S
     ctx.db.feedback().insert(row);
 }
 
-//fn delete_game(ctx: &ReducerContext, game_id: u32) {
-// TODO
-//}
+fn delete_game(ctx: &ReducerContext, game_id: u32) {
+    log::info!("deleting every data related to game_id {}...", game_id);
+    ctx.db.game().id().delete(game_id);
+    for gm in ctx.db.game_move().game_id().filter(&game_id) {
+        ctx.db.game_move().id().delete(gm.id);
+    }
+    for fb in ctx.db.feedback().game_id().filter(&game_id) {
+        ctx.db.feedback().id().delete(fb.id);
+    }
+}
 
 /////// REDUCERS
 
@@ -116,7 +128,7 @@ fn give_feedback(ctx: &ReducerContext, game_id: u32, player_id: Identity, msg: S
 #[spacetimedb::reducer(client_connected)]
 fn identity_connected(ctx: &ReducerContext) {
     // called everytime a new client connects
-    log::info!("{} connected.", ctx.sender);
+    log::info!("Client {} connected.", ctx.sender);
 
     let gr: u8 = 0;
     let unstarted_game: Option<Game> = ctx.db.game().result().filter(&gr).next();
@@ -126,7 +138,19 @@ fn identity_connected(ctx: &ReducerContext) {
         g.ready2 = true;
         g.result = GR_ONGOING;
         g = ctx.db.game().id().update(g);
-        log::info!("game {} now has 2 players...", g.id);
+        log::info!("Game {} starting...", g.id);
+        give_feedback(
+            ctx,
+            g.id,
+            g.p1,
+            "Game starting! You play first with the Xs.".to_string(),
+        );
+        give_feedback(
+            ctx,
+            g.id,
+            g.p2,
+            "Game starting! Opponent plays first. You play the Os.".to_string(),
+        );
     } else {
         let g = Game {
             id: 0,
@@ -138,20 +162,27 @@ fn identity_connected(ctx: &ReducerContext) {
             ready2: false,
         };
         let g = ctx.db.game().insert(g);
-        log::info!("created game {} connected.", g.id);
+        log::info!("Game {} created.", g.id);
+        give_feedback(
+            ctx,
+            g.id,
+            ctx.sender,
+            "Waiting for an opponent to join...".to_string(),
+        );
     }
 }
 
 #[spacetimedb::reducer(client_disconnected)]
 fn identity_disconnected(ctx: &ReducerContext) {
     // called everytime a client disconnects
-    log::info!("{} disconnected.", ctx.sender);
+    log::info!("Client {} disconnected.", ctx.sender);
 
     let g = ctx.db.game().p1().filter(&ctx.sender).next();
     if let Some(mut g) = g {
         g.ready1 = false;
         g.result = GR_ABANDONED;
         give_feedback(ctx, g.id, g.p2, "other player left".to_string());
+        delete_game(ctx, g.id); // TODO: timer first
         return;
     }
 
@@ -160,46 +191,47 @@ fn identity_disconnected(ctx: &ReducerContext) {
         g.ready2 = false;
         g.result = GR_ABANDONED;
         give_feedback(ctx, g.id, g.p1, "other player left".to_string());
+        delete_game(ctx, g.id); // TODO: timer first
         return;
     }
-
-    // TODO: delete the game, its moves and feedback after n seconds via a timer
-}
-
-#[spacetimedb::reducer]
-pub fn ready(ctx: &ReducerContext) {
-    log::info!("received ready from {}.", ctx.sender);
-    // let g = ctx.db.game().p2().filter(&Identity::ZERO).next();
-    // if let Some(mut g) = g {
-    //     log::info!("player {} is ready for game {}!", ctx.sender, g.id);
-    //     if g.p1 == ctx.sender {
-    //         g.ready1 = true;
-    //     } else if g.p2 == ctx.sender {
-    //         g.ready2 = true;
-    //     } else {
-    //         panic!("should not happen")
-    //     }
-
-    //     if g.ready1 && g.ready2 {
-    //         g.result = GR_ONGOING;
-    //         log::info!("game {} is starting!", g.id);
-    //     }
-
-    //     ctx.db.game().id().update(g);
-    // }
 }
 
 #[spacetimedb::reducer]
 pub fn play(ctx: &ReducerContext, game_id: u32, position: u8) {
-    let mut g = ctx
-        .db
-        .game()
-        .id()
-        .find(&game_id)
-        .ok_or("Game not found")
-        .unwrap();
+    log::info!(
+        "Client {} trying to play in game_id {} the position {}...",
+        ctx.sender,
+        game_id,
+        position
+    );
+
+    let g_ = ctx.db.game().id().find(&game_id);
+
+    if g_.is_none() {
+        log::info!("game not found");
+        give_feedback(
+            ctx,
+            game_id,
+            ctx.sender,
+            "Game not found! Must have ended?".to_string(),
+        );
+        return;
+    }
+
+    let mut g = g_.unwrap();
 
     let mut board = get_board(ctx, &g).unwrap();
+    log::info!("board before move: {:?}", board);
+
+    let p1_to_play_next = filled_cells(board) % 2 == 0;
+    let id_to_play_next = if p1_to_play_next { g.p1 } else { g.p2 };
+
+    if ctx.sender != id_to_play_next {
+        log::info!("not your turn!");
+        give_feedback(ctx, game_id, ctx.sender, "not your turn!".to_string());
+        return;
+    }
+
     if is_full(board) {
         log::info!("trying to play on a full board!");
         give_feedback(
@@ -223,8 +255,10 @@ pub fn play(ctx: &ReducerContext, game_id: u32, position: u8) {
         return;
     }
 
+    log::info!("Move goes through...");
     let v: u8 = if g.p1 == ctx.sender { 1u8 } else { 2u8 };
     board[p_size] = v;
+    log::info!("board after move:  {:?}", board);
 
     let mv = GameMove {
         id: 0,
@@ -237,22 +271,21 @@ pub fn play(ctx: &ReducerContext, game_id: u32, position: u8) {
 
     if has_won(board, v) {
         g.result = if v == 1 { GR_P1_WON } else { GR_P2_WON };
-        give_feedback(ctx, game_id, ctx.sender, "you won!".to_string());
-        give_feedback(
-            ctx,
-            game_id,
-            if g.p1 == ctx.sender { g.p2 } else { g.p1 },
-            "you lost!".to_string(),
-        );
+        let winner = ctx.sender;
+        let loser = if g.p1 == ctx.sender { g.p2 } else { g.p1 };
+        log::info!("Player {} won against {}.", winner, loser);
+        give_feedback(ctx, game_id, winner, "you won!".to_string());
+        give_feedback(ctx, game_id, loser, "you lost!".to_string());
     } else if is_full(board) {
         g.result = GR_TIE;
+        log::info!("Players tied.");
         give_feedback(ctx, game_id, g.p1, "the game is a tie!".to_string());
         give_feedback(ctx, game_id, g.p2, "the game is a tie!".to_string());
     } else {
+        log::info!("Non-finishing move...");
         return;
     }
 
-    // TODO: delete the game, its moves and feedback after n seconds via a timer
-
-    ctx.db.game().id().update(g);
+    ctx.db.game().id().update(g.to_owned());
+    delete_game(ctx, g.id); // TODO: timer first
 }
