@@ -1,4 +1,5 @@
-use spacetimedb::{Identity, ReducerContext, Table, Timestamp};
+use spacetimedb::{Identity, ReducerContext, ScheduleAt, Table, TimeDuration, Timestamp};
+use std::time::Duration;
 
 /////// ENUMS, STRUCTS, CONSTS
 
@@ -55,6 +56,17 @@ pub struct Feedback {
     message: String,
 }
 
+#[spacetimedb::table(name = delete_game_timer, scheduled(delete_game))]
+#[derive(Debug, Clone)]
+struct DeleteGameTimer {
+    #[primary_key]
+    #[auto_inc]
+    scheduled_id: u64,
+    scheduled_at: spacetimedb::ScheduleAt,
+    #[unique]
+    game_id: u32,
+}
+
 /////// FUNCTIONS
 
 fn get_board(ctx: &ReducerContext, g: &Game) -> Result<[u8; 9], String> {
@@ -107,15 +119,15 @@ fn give_feedback(ctx: &ReducerContext, game_id: u32, player_id: Identity, msg: S
     ctx.db.feedback().insert(row);
 }
 
-fn delete_game(ctx: &ReducerContext, game_id: u32) {
-    log::info!("deleting every data related to game_id {}...", game_id);
-    ctx.db.game().id().delete(game_id);
-    for gm in ctx.db.game_move().game_id().filter(&game_id) {
-        ctx.db.game_move().id().delete(gm.id);
-    }
-    for fb in ctx.db.feedback().game_id().filter(&game_id) {
-        ctx.db.feedback().id().delete(fb.id);
-    }
+fn schedule_delete_game(ctx: &ReducerContext, game_id: u32) {
+    log::info!("schedule the deletion of game_id {} in 250ms...", game_id);
+    _ = ctx.db.delete_game_timer().try_insert(DeleteGameTimer {
+        scheduled_id: 0,
+        scheduled_at: ScheduleAt::Time(
+            ctx.timestamp + TimeDuration::from(Duration::from_secs_f32(0.25)),
+        ),
+        game_id,
+    });
 }
 
 /////// REDUCERS
@@ -182,7 +194,7 @@ fn identity_disconnected(ctx: &ReducerContext) {
         g.ready1 = false;
         g.result = GR_ABANDONED;
         give_feedback(ctx, g.id, g.p2, "other player left".to_string());
-        delete_game(ctx, g.id); // TODO: timer first
+        schedule_delete_game(ctx, g.id);
         return;
     }
 
@@ -191,7 +203,7 @@ fn identity_disconnected(ctx: &ReducerContext) {
         g.ready2 = false;
         g.result = GR_ABANDONED;
         give_feedback(ctx, g.id, g.p1, "other player left".to_string());
-        delete_game(ctx, g.id); // TODO: timer first
+        schedule_delete_game(ctx, g.id);
         return;
     }
 }
@@ -287,5 +299,18 @@ pub fn play(ctx: &ReducerContext, game_id: u32, position: u8) {
     }
 
     ctx.db.game().id().update(g.to_owned());
-    delete_game(ctx, g.id); // TODO: timer first
+    schedule_delete_game(ctx, g.id);
+}
+
+#[spacetimedb::reducer]
+fn delete_game(ctx: &ReducerContext, timer: DeleteGameTimer) {
+    let game_id = timer.game_id;
+    log::info!("deleting every data related to game_id {}...", game_id);
+    ctx.db.game().id().delete(game_id);
+    for gm in ctx.db.game_move().game_id().filter(&game_id) {
+        ctx.db.game_move().id().delete(gm.id);
+    }
+    for fb in ctx.db.feedback().game_id().filter(&game_id) {
+        ctx.db.feedback().id().delete(fb.id);
+    }
 }
