@@ -1,0 +1,44 @@
+html {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+body {
+    font-family: sans-serif;
+}
+
+.cell {
+    display: inline-block;
+    width: 200px;
+    height: 200px;
+    border: 1px solid #aaa;
+    cursor: grab;
+}
+
+.cell.x,
+.cell.o {
+    cursor: auto;
+}
+
+.cell:after {
+    content: " ";
+    float: left;
+    display: block;
+    font-size: 130px;
+    line-height: 200px;
+    text-align: center;
+    width: 200px;
+    height: 200px;
+}
+
+.cell.x:after {
+    color: purple;
+    content: "X";
+}
+
+.cell.o:after {
+    color: orange;
+    content: "O";
+}
